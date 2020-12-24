@@ -1,0 +1,234 @@
+function eg2OC_Descent
+%REFERENCIAS:   Example 2 of optimal control tutorial.
+%    This example is from D.E.Kirk's Optimal control theory: an introduction
+%    example 6.2-2 on page 338-339.
+%    Steepest descent method is used to find the solution.
+%    Adaptación del codigo por David Torres y Jorge Torres
+eps = 1e-3;
+options = odeset('RelTol', 1e-4, 'AbsTol',[1e-4 1e-4 1e-4 1e-4 1e-4 1e-4]);
+t0 = 0; tf = 20;
+% R = 0.1;
+step = 0.4;
+t_segment = 50;
+Tu = linspace(t0, tf, t_segment);    % discretize time
+u = ones(1,t_segment);               % guessed initial control  u=1
+initx = [0.7506,0.25108,0.0008,0.64999,0.2379, 2];                    % initial values for states
+initp = [0 0 0 0 0 0.4];                       % initial values for costates
+max_iteration = 100;                 % Maximum number of iterations
+for i = 1:max_iteration
+   % 1) start with assumed control u and move forward
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   [Tx,X] = ode45(@(t,x) stateEq(t,x,u,Tu), [t0 tf], initx, options);
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   [Ti,X0] = ode45(@(t,x)nonlinear(t,x), [t0 tf], initx, options);
+   xi1 = X0(:,1); xi2 = X0(:,2);xi3 = X0(:,3)
+   xi4 = X0(:,4); xi5 = X0(:,5);xi6 = X0(:,6)
+   
+   xi1 = interp1(Ti,xi1,Tx);
+   xi2 = interp1(Ti,xi2,Tx);
+   xi3 = interp1(Ti,xi3,Tx);
+   xi4 = interp1(Ti,xi4,Tx);
+   xi5 = interp1(Ti,xi5,Tx);
+   xi6 = interp1(Ti,xi6,Tx);
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   % 2) Move backward to get the trajectory of costates
+   x1 = X(:,1); x2 = X(:,2);x3 = X(:,3)
+   x4 = X(:,4); x5 = X(:,5);x6 = X(:,6)
+   [Tp,P] = ode45(@(t,p) costateEq(t,p,u,Tu,x1,x2,x3,x4,x5,x6,Tx), [tf t0], initp, options);
+   p1 = P(:,1);
+   p1 = P(:,1);p2 = P(:,2);p3 = P(:,3);
+   p4 = P(:,4);p5 = P(:,5);p6 = P(:,6);
+   % Important: la matriz adjunta
+   p1 = interp1(Tp,p1,Tx);
+   p2 = interp1(Tp,p2,Tx);
+   p3 = interp1(Tp,p3,Tx);
+   p4 = interp1(Tp,p4,Tx);
+   p5 = interp1(Tp,p5,Tx);
+   p6 = interp1(Tp,p6,Tx);
+   
+   % Calculo deltaH with x1(t), x2(t), p1(t), p2(t)
+   dH = pH(x1,p1,Tx,u,Tu);
+   H_Norm = dH'*dH;
+   
+   % Calculo the cost funcion optima
+   J(i,1) = tf*(((x1')*x1 + (x2')*x2)/length(Tx) + 0.1*(u*u')/length(Tu));
+   
+   % if dH/du < epslon, exit
+   if H_Norm < eps
+       % Display final cost
+       J(i,1)
+       break;
+   else
+       % adjust control for next iteration
+       u_old = u;
+       u = AdjControl(dH,Tx,u_old,Tu,step);
+   end; 
+end
+% plot the state variables & cost for each iteration
+
+figure(1);
+subplot(3,1,1); plot(Tx,X(:,1)); ylabel('S(t)');%plot(t,K,t,Ksincontrol(1,:))
+hold on
+subplot(3,1,1); plot(Ti,X0(:,1),'--'); ylabel('S. SOLUBLE');
+hold off
+subplot(3,1,2); plot(Tx,X(:,2)); ylabel('I(t)');
+hold on
+subplot(3,1,2); plot(Ti,X0(:,2),'--'); ylabel('S. INSOLUBLE');
+hold off
+subplot(3,1,3); plot(Tx,X(:,3)); ylabel('X(t)'); xlabel('t');
+hold on
+subplot(3,1,3); plot(Ti,X0(:,3),'--'); ylabel('BIOMASA'); xlabel('t');
+hold off
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%s = strcat('Final cost is: J=',num2str(J(end,1)));
+%text(.4,1,s);
+%xlabel('time');
+%ylabel('states');
+%hold off;
+figure(2)
+subplot(3,1,1); plot(Tx,X(:,4)); ylabel('L(t)');
+hold on
+subplot(3,1,1); plot(Ti,X0(:,4),'--'); ylabel('P. LIQUIDA');
+hold off
+subplot(3,1,2); plot(Tx,X(:,5)); ylabel('M(t)');
+hold on
+subplot(3,1,2); plot(Ti,X0(:,5),'--'); ylabel('PRE-COMPOST');
+hold off
+subplot(3,1,3); plot(Tx,X(:,6)); ylabel('W(t)'); xlabel('t');
+hold on
+subplot(3,1,3); plot(Ti,X0(:,6),'--'); ylabel('OXIGENO'); xlabel('t');
+hold off
+%subplot(6,1,2); plot(Tx,p2); ylabel('?I(t)');
+%subplot(6,1,3); plot(Tx,p3); ylabel('?X(t)');
+%subplot(6,1,4); plot(Tx,p4); ylabel('?L(t)');
+%subplot(6,1,5); plot(Tx,p5); ylabel('?M(t)');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure(3)
+subplot(2,1,1); plot(Tx,p1); ylabel('adjW(t)');%plot(t,K,t,Ksincontrol(1,:))
+subplot(2,1,2); plot(Tu,u); ylabel('U(t)'); xlabel('t');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure(4)
+subplot(6,1,1); plot(Tx,p1); ylabel('adjS(t)');
+subplot(6,1,2); plot(Tx,p2); ylabel('adjI(t)');
+subplot(6,1,3); plot(Tx,p3); ylabel('adjX(t)');
+subplot(6,1,4); plot(Tx,p4); ylabel('adjL(t)');
+subplot(6,1,5); plot(Tx,p5); ylabel('adjM(t)');
+subplot(6,1,6); plot(Tx,p6); ylabel('adjW(t)');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%figure(4);
+%subplot(3,1,1); plot(Ti,X0(:,1),'--'); ylabel('S0(t)');%plot(t,K,t,Ksincontrol(1,:))
+%subplot(3,1,2); plot(Ti,X0(:,2),'--'); ylabel('I0(t)');
+%subplot(3,1,3); plot(Ti,X0(:,3),'--'); ylabel('X0(t)'); xlabel('t');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure(5);
+plot(J,'x-');
+xlabel('Iteration number');
+ylabel('J');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if i == max_iteration
+    disp('Stopped before required residual is obtained.');
+end
+% State equations
+function dx = stateEq(t,x,u,Tu)
+dx = zeros(6,1);
+u = interp1(Tu,u,t); % Interploate the control at time t
+  %s=x(1)
+  %i=x(2)
+  %x=x(3)
+  %l=x(4)
+  %m=x(5)
+  %w=x(6)
+  %Constantes generales
+  Y_s = 0.53;
+  Y_l = 1.34;
+  Y_i = 1.02;
+  c_h = 2.45*10^(-3);
+  c_w = 0.74;
+  c_s = 1.36*10^(-5);
+  gamma = 3.7*10^3;
+  betha = 1.9*10^(-1);
+
+dx(1) = -1/Y_s*x(6)/(x(6)+c_w)*x(1)/(x(1)+c_s)*x(3)+c_h*x(2);
+dx(2) = -c_h*x(2)+1/Y_i*betha*x(3);
+dx(3) = x(6)/(x(6)+c_w)*x(1)/(x(1)+c_s)*x(3)-betha*x(3);
+dx(4) = 1/Y_l*x(6)/(x(6)+c_w)*x(1)/(x(1)+c_s)*x(3);
+dx(5) = -(1-1/Y_s+1/Y_l)*x(1)/(x(1)+c_s)*x(6)/(x(6)+c_w)*x(3)+(1-1/Y_i)*betha*x(3);
+dx(6) = -gamma*x(1)/(x(1)+c_s)*x(6)/(x(6)+c_w)*x(3)+u;
+
+% Costate equations
+function dp = costateEq(t,p,u,Tu,x1,x2,x3,x4,x5,x6,xt)
+dp = zeros(6,1);
+
+x1 = interp1(xt,x1,t);   % Interploate the state varialbes
+x2 = interp1(xt,x2,t);
+x3 = interp1(xt,x3,t);
+x4 = interp1(xt,x4,t);
+x5 = interp1(xt,x5,t);
+x6 = interp1(xt,x6,t);
+
+u = interp1(Tu,u,t);     % Interploate the control
+%dp(1) = p(1).*(u + exp((25*x1)/(x1 + 2)).*((25*x1)/(x1 + 2)^2 - ...
+%        25/(x1 + 2))*(x2 + 1/2) + 2) - ...
+%        2*x1 - p(2).*exp((25*x1)/(x1 + 2))*((25*x1)/(x1 + 2)^2 - ...
+%        25/(x1 + 2))*(x2 + 1/2);
+%dp(2) = p(2).*(exp((25*x1)/(x1 + 2)) + 1) - ...
+%        p(1).*exp((25*x1)/(x1 + 2)) - 2*x2;
+
+  Y_s = 0.53;
+  Y_l = 1.34;
+  Y_i = 1.02;
+  c_h = 2.45*10^(-3);
+  c_w = 0.74;
+  c_s = 1.36*10^(-5);
+  gamma = 3.7*10^3;
+  betha = 1.9*10^(-1);
+  
+  alpha_s = c_s/(x1+c_s)^2*x6/(x6+c_w)*x3; % Definimos variables internas
+  alpha_x = x1/(x1+c_s)*x6/(x6+c_w);
+  alpha_w = x1/(x1+c_s)*c_w/(x6+c_w)^2*x3;
+
+dp(1) = p(1).*alpha_s/Y_s - p(3).*alpha_s - p(4).*alpha_s/Y_l + p(5).*(1-1/Y_s+1/Y_l)*alpha_s + p(6).*gamma*alpha_s;
+dp(2) = -p(1).*c_h + p(2).*c_h;
+dp(3) = p(1).*alpha_x/Y_s - p(2).*betha/Y_i + p(3).*(-alpha_x+betha)  - p(4).*alpha_x/Y_l + p(5).*((1-1/Y_s+1/Y_l)*alpha_x-(1-1/Y_i)*betha) + p(6).*gamma*alpha_x;
+dp(4) = 0;
+dp(5) = 0;
+dp(6) = p(1).*alpha_w/Y_s - p(3).*alpha_w  - p(4)*alpha_w/Y_l + p(5).*(1-1/Y_s + 1/Y_l)*alpha_w + p(6).*alpha_w;
+% Partial derivative of H with respect to u
+function dH = pH(x6,p6,tx,u,Tu)
+% interploate the control
+u = interp1(Tu,u,tx);
+%R = 0.1;
+%dH = 2*R*u - p1.*(x1 + 0.25);
+dH = p6;
+
+% Adjust the control
+function u_new = AdjControl(pH,tx,u,tu,step)
+% interploate dH/du
+pH = interp1(tx,pH,tu);
+u_new = u - step*pH;
+
+function [xdot] = nonlinear(t,x,Ti)
+
+  Y_s = 0.53;
+  Y_l = 1.34;
+  Y_i = 1.02;
+  c_h = 2.45*10^(-3);
+  c_w = 0.74;
+  c_s = 1.36*10^(-5);
+  gamma = 3.7*10^3;
+  betha = 1.9*10^(-1);
+  %s=x(1)
+  %i=x(2)
+  %x=x(3)
+  %l=x(4)
+  %m=x(5)
+  %w=x(6)
+
+  xdot=[-1/Y_s*x(6)/(x(6)+c_w)*x(1)/(x(1)+c_s)*x(3)+c_h*x(2);
+      -c_h*x(2)+1/Y_i*betha*x(3);
+      x(6)/(x(6)+c_w)*x(1)/(x(1)+c_s)*x(3)-betha*x(3);
+      1/Y_l*x(6)/(x(6)+c_w)*x(1)/(x(1)+c_s)*x(3);
+      -(1-1/Y_s+1/Y_l)*x(1)/(x(1)+c_s)*x(6)/(x(6)+c_w)*x(3)+(1-1/Y_i)*betha*x(3);
+      -gamma*x(1)/(x(1)+c_s)*x(6)/(x(6)+c_w)*x(3)];
